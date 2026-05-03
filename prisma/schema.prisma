@@ -12,25 +12,57 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  PATIENT
+  DOCTOR
+  ADMIN
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum NotifType {
+  CONFIRMATION
+  REMINDER
+}
+
+enum NotifStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 model User {
-  id            String    @id
+  id            String    @id @default(cuid())
   name          String
-  email         String
+  email         String    @unique
+  role          Role      @default(PATIENT)
   emailVerified Boolean   @default(false)
   image         String?
+  banned        Boolean?  @default(false)
+  banReason     String?
+  banExpires    DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
   accounts      Account[]
 
-  @@unique([email])
+  clinicId String?
+  clinic   Clinic? @relation(fields: [clinicId], references: [id])
+
+  doctor Doctor?
+
   @@map("user")
 }
 
 model Session {
   id        String   @id
   expiresAt DateTime
-  token     String
+  token     String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   ipAddress String?
@@ -38,7 +70,6 @@ model Session {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([token])
   @@index([userId])
   @@map("session")
 }
@@ -63,14 +94,89 @@ model Account {
   @@map("account")
 }
 
-model Verification {
-  id         String   @id
-  identifier String
-  value      String
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+model Clinic {
+  id        String   @id @default(cuid())
+  name      String
+  address   String
+  phone     String
+  openHours Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@index([identifier])
-  @@map("verification")
+  doctors Doctor[]
+  users   User[]
+}
+
+model Doctor {
+  id        String   @id @default(cuid())
+  name      String
+  specialty String
+  bio       String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinicId String
+  clinic   Clinic @relation(fields: [clinicId], references: [id])
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  slots        Slot[]
+  appointments Appointment[]
+  waitlist     Waitlist[]
+}
+
+model Slot {
+  id        String   @id @default(cuid())
+  startTime DateTime
+  endTime   DateTime
+  isBooked  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  doctorId String
+  doctor   Doctor @relation(fields: [doctorId], references: [id])
+
+  appointment Appointment?
+}
+
+model Appointment {
+  id           String            @id @default(cuid())
+  patientName  String
+  patientEmail String
+  reason       String?
+  status       AppointmentStatus @default(PENDING)
+  notes        String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  doctorId String
+  doctor   Doctor @relation(fields: [doctorId], references: [id])
+
+  slotId String @unique
+  slot   Slot   @relation(fields: [slotId], references: [id])
+
+  notifications Notification[]
+}
+
+model Waitlist {
+  id           String   @id @default(cuid())
+  patientName  String
+  patientEmail String
+  status       String   @default("WAITING")
+  createdAt    DateTime @default(now())
+
+  doctorId String
+  doctor   Doctor @relation(fields: [doctorId], references: [id])
+}
+
+model Notification {
+  id     String      @id @default(cuid())
+  type   NotifType
+  status NotifStatus @default(PENDING)
+  sentAt DateTime?
+  email  String
+
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
 }

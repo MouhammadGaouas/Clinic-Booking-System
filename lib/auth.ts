@@ -1,13 +1,20 @@
 import { betterAuth } from "better-auth";
+import { nextCookies } from "better-auth/next-js";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-// If your Prisma file is located elsewhere, you can change the path
-import { Prisma } from "@/generated/prisma/client";
+import { admin } from "better-auth/plugins";
+import { prisma } from "@/lib/prisma";
 
 export const auth = betterAuth({
-  database: prismaAdapter(Prisma, {
-    provider: "postgresql", // or "mysql", "postgresql", ...etc
+  database: prismaAdapter(prisma, {
+    provider: "postgresql",
   }),
   emailAndPassword: {
     enabled: true,
   },
+  plugins: [
+    nextCookies(), 
+    admin({
+        defaultRole: "PATIENT"
+    })
+  ],
 });
